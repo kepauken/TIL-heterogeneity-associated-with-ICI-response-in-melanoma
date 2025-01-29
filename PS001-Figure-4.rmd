@@ -1,0 +1,279 @@
+---
+title: "PS0014-Figur-4"
+output: github_document
+Author: "Prachi Sao"
+Date: "2021-06-30"
+organization:"PAUKEN LAB, MD ANDERSON CANCER CENTER"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## load colors
+```{r}  
+<!-- # set colors for plots  -->
+my_colors_cluster <- c('red','black','blue','green','orange','yellow','brown','magenta','pink','gray')
+my_colors_sample <- c('purple', 'tan','lightblue','lightgreen','maroon','lightgreen','lightpink','yellow',"orange","lightblue")
+my_colors_cp_status =c("blue", "gray90")
+```
+
+## Load Data
+```{r}
+no_tcr_final = readRDS("Results /RDS/PS00111-cd8_cca_integrated_res04_final_04_22_2024_final.rds")
+names(no_tcr_final@meta.data)
+```
+
+## Figure 4A
+```{r}
+Idents(no_tcr_final) = "seurat_cluster.04"
+fig5a_list = c("HAVCR2","LAG3","TIGIT","TNFRSF18","TNFRSF4","TNFRSF9","ICOS","CD40LG")
+ figac_list_plot_list = list()
+# Create the plot without borders
+for(i in fig5a_list ){
+dim.i = dittoDimPlot(no_tcr_final,i, opacity = 0.5, max.color = "#de2d26", min.color = "#fee0d2", show.axes.numbers = FALSE,legend.size = 8)+
+NoAxes()
+        figac_list_plot_list[[i]] <- dim.i 
+            } 
+ Figure.4A <- do.call(grid.arrange, c(figac_list_plot_list, ncol = 3))
+print( Figure.4A)    
+```
+
+
+## Figure 4A # bhattacharya coefficient heapmap in r.
+```{r}
+ 
+  #install.packages("philentropy")
+library(philentropy)
+library(pheatmap)
+library(corrplot)
+ figB_list = c("CD40LG","TNFRSF18","TNFRSF4", "ICOS" ,"CTLA4","TNFRSF9","HAVCR2", "PDCD1","LAG3", "TIGIT" )
+
+matr22 = as.matrix(FetchData(no_tcr_final, var = figB_list, group.by = "seurat_cluster.04", return.seurat = F, assays = "RNA"))
+
+cl_mtx <- apply(matr22 , 2, function(x){x/sum(x)})
+  bh_dist <- philentropy::distance(t(cl_mtx), method = "bhattacharyya") %>% as.matrix()
+  rownames(bh_dist) <- colnames(cl_mtx)
+  colnames(bh_dist) <- colnames(cl_mtx)
+  bh_sim <- exp(-bh_dist)
+
+bh_sim_plt <- bh_sim
+  corrplot(bh_sim_plt, 
+  method = "number",
+           is.corr = F,
+           type="upper",
+           tl.cex = 1,
+           mar = c(1,1,1,1),
+           diag = T, na.label = " ",
+           addCoefasPercent = T,
+           order="hclust",
+           col=brewer.pal(n=8, name="PuOr"))
+colpal <- rev(RColorBrewer::brewer.pal(9, "RdYlBu"))
+pheatmap(bh_sim_plt, display_numbers=F, color =  colpal, show_rownames= T, cluster_col=T, 
+cellwidth = 40,cellheight = 40)
+```
+
+## Figure 4C
+```{r}
+fig5c_list = c("PDCD1","CTLA4","HAVCR2","CD40LG", "LAG3", "TIGIT",  "TNFRSF18", "TNFRSF4", "ICOS" ,"TNFRSF9")
+aggregate_fig5c_list<- as.data.frame(AggregateExpression(no_tcr_final, features = fig5c_list, group.by ="seurat_cluster.04", return.seurat = F, assays = "RNA"))
+aggregate_fig5c_list
+# write.table(aggregate_fig5c_list, file = paste0(dir_out, "final_plots/", "fig5c_mat.txt"))
+Idents(no_tcr_final) = "seurat_cluster.04"
+colnames(aggregate_fig5c_list) = c(levels(no_tcr_final))
+aggregate_fig5c_list
+scaled.mat5 <- t(scale(t(aggregate_fig5c_list)))
+
+Fig5c.mat = data.matrix(scaled.mat5)[match(fig5c_list, rownames(data.matrix(scaled.mat5))),]
+data.matrix(Fig5c.mat)
+input.hm.filter.breaks <- t(scale(t(scaled.mat5 )))
+quantile.range <- quantile(t(input.hm.filter.breaks), probs = seq(0, 1, 0.1))
+paletteBreaks <- quantile.range
+paletteLength <- length(paletteBreaks)-1
+col.pal <- RColorBrewer::brewer.pal(paletteLength, "RdBu")
+col.pal <- rev(col.pal)
+
+pheatmap(
+    mat               = scaled.mat5,
+    breaks            = paletteBreaks,
+    cluster_cols      = TRUE,
+    cluster_rows      = TRUE,
+    color             = col.pal,
+    border_color      = NA,
+    show_colnames     = T,
+    show_rownames     = T,
+    drop_levels       = TRUE,
+    fontsize          = 14,
+    main              = "fig5c",
+    cellwidth         = 40,
+    cellheight        = 40
+)
+```
+
+## Figure 4D
+```{r}
+fig5b_list.1 <- c("CD40LG", "TNFRSF18", "TNFRSF4", "ICOS", "CTLA4", "TNFRSF9", "HAVCR2", "PDCD1", "LAG3", "TIGIT")
+
+fig5b_list <- list()
+for (fig in fig5b_list.1) {
+  print(fig)  
+  tmp.Data.fig <- FetchData(no_tcr_final, vars = fig)
+  head(tmp.Data.fig)
+  fig5b_list[[fig]] <- tmp.Data.fig
+}
+
+##########################################################
+# To Decide cuttoff for each pair, the histograms plots were generated Using the same approach that we used to classify cells as PDCD1/CTLA4 high (Figure S2), 
+# we classified alternative combinations, including PDCD1/LAG3 high, PDCD1/TIGIT high, PDCD1/HAVCR2 high, PDCD1/TNFRSF18 high, 
+# PDCD1/TNFRSF9 high, PDCD1/TNFRSF4 high, PDCD1/CD40LG high, and PDCD1/ICOS high 
+
+##########################################################
+
+
+PDCD1.CD40LG.high <- WhichCells(no_tcr_final, expression = PDCD1>= 0.5 & CD40LG >= 0.5)
+length(PDCD1.CD40LG.high)
+
+PDCD1.TNFRSF18.high <- WhichCells(no_tcr_final, expression = PDCD1>= 0.5 & TNFRSF18 >= 0.5)
+length(PDCD1.TNFRSF18.high)
+
+PDCD1.TNFRSF4.high <- WhichCells(no_tcr_final, expression = PDCD1>= 0.5 & TNFRSF4 >= 0.5)
+length(PDCD1.TNFRSF4.high)
+
+PDCD1.ICOS.high <- WhichCells(no_tcr_final, expression = PDCD1>= 0.5 & ICOS >= 0.5)
+length(PDCD1.ICOS.high)
+
+PDCD1.CTLA4.high <- WhichCells(no_tcr_final, expression = PDCD1>= 0.5 & CTLA4 >= 0.5)
+length(PDCD1.CTLA4.high)
+
+PDCD1.TNFRSF9.high <- WhichCells(no_tcr_final, expression = PDCD1>= 0.5 & TNFRSF9 >= 0.5)
+length(PDCD1.TNFRSF9.high)
+
+PDCD1.HAVCR2.high <- WhichCells(no_tcr_final, expression = PDCD1>= 0.5 & HAVCR2 >= 0.5)
+length(PDCD1.HAVCR2.high)
+
+PDCD1.LAG3.high <- WhichCells(no_tcr_final, expression = PDCD1>= 0.5 & LAG3 >= 0.5)
+length(PDCD1.LAG3.high)
+
+PDCD1.TIGIT.high <- WhichCells(no_tcr_final, expression = PDCD1>= 0.5 & TIGIT >= 0.5)
+length(PDCD1.TIGIT.high)
+
+# Create a data frame with gene names and counts
+gene_names <- c("PDCD1.CD40LG.high", "PDCD1.TNFRSF18.high", "PDCD1.TNFRSF4.high", "PDCD1.ICOS.high",
+                "PDCD1.CTLA4.high", "PDCD1.TNFRSF9.high", "PDCD1.HAVCR2.high", "PDCD1.LAG3.high", "PDCD1.TIGIT.high")
+
+gene_counts <- c(length(PDCD1.CD40LG.high), length(PDCD1.TNFRSF18.high), length(PDCD1.TNFRSF4.high), length(PDCD1.ICOS.high),
+                length(PDCD1.CTLA4.high), length(PDCD1.TNFRSF9.high), length(PDCD1.HAVCR2.high), length(PDCD1.LAG3.high), length(PDCD1.TIGIT.high))
+df <- data.frame(Gene = gene_names, Count = gene_counts)
+
+# Print the resulting data frame
+print(df)
+
+
+############################
+no_tcr_final$PDCD1.CD40LG.high <- ifelse(colnames(no_tcr_final) %in% PDCD1.CD40LG.high, "hi", "lo")
+
+check_genes_PDCD1.CD40LG.high = no_tcr_final@meta.data[no_tcr_final@meta.data$PDCD1.CD40LG.high == "hi", ]
+dim(check_genes_PDCD1.CD40LG.high)
+##
+
+no_tcr_final$PDCD1.TNFRSF18.high <- ifelse(colnames(no_tcr_final) %in% PDCD1.TNFRSF18.high, "hi", "lo")
+check_genes_PDCD1.TNFRSF18.high = no_tcr_final@meta.data[no_tcr_final@meta.data$PDCD1.TNFRSF18.high == "hi", ]
+dim(check_genes_PDCD1.TNFRSF18.high)
+
+###
+no_tcr_final$PDCD1.TNFRSF18.high <- ifelse(colnames(no_tcr_final) %in% PDCD1.TNFRSF18.high, "hi", "lo")
+check_genes_PDCD1.TNFRSF18.high = no_tcr_final@meta.data[no_tcr_final@meta.data$PDCD1.TNFRSF18.high == "hi", ]
+dim(check_genes_PDCD1.TNFRSF18.high)
+
+###
+no_tcr_final$PDCD1.TNFRSF4.high <- ifelse(colnames(no_tcr_final) %in% PDCD1.TNFRSF4.high, "hi", "lo")
+check_genes_PDCD1.TNFRSF4.high = no_tcr_final@meta.data[no_tcr_final@meta.data$PDCD1.TNFRSF4.high== "hi", ]
+dim(check_genes_PDCD1.TNFRSF4.high)
+
+###
+no_tcr_final$PDCD1.ICOS.high<- ifelse(colnames(no_tcr_final) %in% PDCD1.ICOS.high, "hi", "lo")
+check_genes_PDCD1.ICOS.high = no_tcr_final@meta.data[no_tcr_final@meta.data$PDCD1.ICOS.high== "hi", ]
+dim(check_genes_PDCD1.ICOS.high)
+
+###
+no_tcr_final$PDCD1.CTLA4.high<- ifelse(colnames(no_tcr_final) %in% PDCD1.CTLA4.high, "hi", "lo")
+check_genes_PDCD1.CTLA4.high = no_tcr_final@meta.data[no_tcr_final@meta.data$PDCD1.CTLA4.high== "hi", ]
+dim(check_genes_PDCD1.CTLA4.high)
+
+###
+no_tcr_final$PDCD1.TNFRSF9.high<- ifelse(colnames(no_tcr_final) %in% PDCD1.TNFRSF9.high, "hi", "lo")
+check_genes_PDCD1.TNFRSF9.high = no_tcr_final@meta.data[no_tcr_final@meta.data$PDCD1.TNFRSF9.high== "hi", ]
+dim(check_genes_PDCD1.TNFRSF9.high)
+
+###
+no_tcr_final$PDCD1.HAVCR2.high<- ifelse(colnames(no_tcr_final) %in% PDCD1.HAVCR2.high, "hi", "lo")
+check_genes_PDCD1.HAVCR2.high = no_tcr_final@meta.data[no_tcr_final@meta.data$PDCD1.HAVCR2.high== "hi", ]
+dim(check_genes_PDCD1.HAVCR2.high)
+
+###
+no_tcr_final$PDCD1.LAG3.high<- ifelse(colnames(no_tcr_final) %in% PDCD1.LAG3.high, "hi", "lo")
+check_genes_PDCD1.LAG3.high = no_tcr_final@meta.data[no_tcr_final@meta.data$PDCD1.LAG3.high== "hi", ]
+dim(check_genes_PDCD1.LAG3.high)
+
+###
+no_tcr_final$PDCD1.TIGIT.high<- ifelse(colnames(no_tcr_final) %in% PDCD1.TIGIT.high, "hi", "lo")
+check_genes_PDCD1.TIGIT.high = no_tcr_final@meta.data[no_tcr_final@meta.data$PDCD1.TIGIT.high== "hi", ]
+dim(check_genes_PDCD1.TIGIT.high)
+
+
+saveRDS(no_tcr_final, file = paste0( "Results/RDS/PS001113-fig5b_final_04_22_2024_final.rds"))
+#################
+Idents(no_tcr_final) = "seurat_cluster.04"
+
+PDCD1.CD40LG.high.df = table(Idents(no_tcr_final), no_tcr_final$PDCD1.CD40LG.high)[,1]
+PDCD1.TNFRSF18.high.df = table(Idents(no_tcr_final), no_tcr_final$PDCD1.TNFRSF18.high)[,1]
+PDCD1.TNFRSF4.high.df = table(Idents(no_tcr_final), no_tcr_final$PDCD1.TNFRSF4.high)[,1]
+PDCD1.ICOS.high.df = table(Idents(no_tcr_final), no_tcr_final$PDCD1.ICOS.high)[,1]
+PDCD1.CTLA4.high.df = table(Idents(no_tcr_final), no_tcr_final$PDCD1.CTLA4.high)[,1]
+PDCD1.TNFRSF9.high.df = table(Idents(no_tcr_final), no_tcr_final$PDCD1.TNFRSF9.high)[,1]
+PDCD1.HAVCR2.high.df = table(Idents(no_tcr_final), no_tcr_final$PDCD1.HAVCR2.high)[,1]
+PDCD1.LAG3.high.df = table(Idents(no_tcr_final), no_tcr_final$PDCD1.LAG3.high)[,1]
+PDCD1.TIGIT.high.df = table(Idents(no_tcr_final), no_tcr_final$PDCD1.TIGIT.high)[,1]
+
+# Create the data frame
+pdcd_co_df <- data.frame(PDCD1.CD40LG.high.df, PDCD1.TNFRSF18.high.df,PDCD1.TNFRSF4.high.df,
+                           PDCD1.ICOS.high.df, PDCD1.CTLA4.high.df,PDCD1.TNFRSF9.high.df,
+                           PDCD1.HAVCR2.high.df,PDCD1.LAG3.high.df,PDCD1.TIGIT.high.df)
+ pdcd_co_df = as.data.frame(pdcd_co_df)                          
+pdcd_co_df <- tibble::rownames_to_column(pdcd_co_df, "clusters")
+                 
+# Melt data frame to long format
+pdcd_co_melted <- melt(pdcd_co_df, id.vars="clusters")
+
+# Plot using ggplot2
+ggplot(pdcd_co_melted, aes(x=clusters, y=value, fill=variable)) +
+    geom_bar(stat="identity") +
+    scale_fill_manual(values=my_colors_cluster) +  # Add more colors as needed
+    labs(fill="Seurat Cluster #") +
+    theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5))
+
+
+
+pdcd1_co_plot = ggplot(pdcd_co_melted, aes(x = variable, y = value, fill = clusters)) +
+  theme_bw(base_size = 15) +
+  geom_col(position = "fill", width = 0.25) +
+  xlab("pdcd1_co") +
+  theme(axis.text.x=element_text(angle=45, hjust=1))+
+  labs(fill='Seurat Clusters') +
+  ylab("Percentage of cell per seurat cluster") +
+  #scale_fill_manual(values = brewer.pal(12, "Paired")) +
+  scale_fill_manual(values = my_colors_cluster) +
+  theme(legend.title = element_blank()) +theme_classic()+
+   coord_flip()
+
+  pdcd1_co_plot
+
+ 
+  
+  plt_list1 <- do.call(grid.arrange, c(plt_list[1:5], ncol = 3))
+plt_list2 = do.call(grid.arrange, c(plt_list[6:10], ncol = 3))# Print the arranged plots
+
+print(plt_list1 )
+print(plt_list2)
+dev.off()
+```

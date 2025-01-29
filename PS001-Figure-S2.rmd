@@ -1,0 +1,254 @@
+---
+title: "PS0013-Figur-S2"
+output: github_document
+Author: "Prachi Sao"
+Date: "2021-06-30"
+organization:"PAUKEN LAB, MD ANDERSON CANCER CENTER"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## load library
+```{r}
+library(Seurat)
+library(ggplot2)
+library(dplyr)
+library(dittoSeq)
+set.seed(1) #set a seed for reproducibility
+options(future.globals.maxSize = +Inf)
+```
+
+## load colors
+```{r}  
+<!-- # set colors for plots  -->
+my_colors_cluster <- c('red','black','blue','green','orange','yellow','brown','magenta','pink','gray')
+my_colors_sample <- c('purple', 'tan','lightblue','lightgreen','maroon','lightgreen','lightpink','yellow',"orange","lightblue")
+my_colors_cp_status =c("blue", "gray90")
+```
+## load data
+```{r}
+# no_tcr_final = readRDS("./Results/RDS/PS00111-cd8_cca_integrated_res04_final_04_22_2024_final.rds")
+names(no_tcr_final@meta.data)
+```
+
+# Select gene of interest
+```{r}
+gene1 <- "PDCD1"
+gene2 <- "CTLA4"
+```
+
+## Figure S2A
+```{r}
+# Extract expression data for PDCD1
+pdcData <- FetchData(no_tcr_final, vars = gene1)
+head(pdcData)
+# Plot histogram for PDCD1
+Fig.S2.A1 = ggplot(pdcData, aes(x = log2(1 + log(1 + pdcData[, 1])))) +
+    geom_histogram(binwidth = 0.2, fill = "blue", color = "black") +
+    geom_vline(xintercept = 0.5, linetype = "dashed", color = "black") +
+    labs(x = paste("Log2(1+Log(1+x)) of", gene1, "counts"), y = "Frequency") +
+    heme(text = element_text(size = 15))+
+    scale_x_continuous(breaks = c(0, 0.5, 1, 1.5)) +
+    theme_classic() +
+    theme(text = element_text(size = 12))
+
+Fig.S2.A1
+
+```
+
+```{r}
+# Extract expression data for CTLA4
+ctlaData <- FetchData(no_tcr_final, vars = gene2)
+head(ctlaData)
+# Plot histogram for CTLA4
+Fig.S2.A2 = ggplot(ctlaData, aes(x = log2(1 + log(1 + ctlaData[, 1])))) +
+  geom_histogram(binwidth = 0.2, fill = "blue", color = "black") +
+  geom_vline(xintercept = 0.5, linetype = "dashed", color = "black") +
+  labs(x = paste("Log2(1+Log(1+x)) of", gene2, "counts"), y = "Frequency") +
+  scale_x_continuous(breaks = c(0, 0.5, 1, 1.5)) +
+  theme_classic()
+  
+Fig.S2.A2 
+```
+
+```{r}
+cphicells <- WhichCells(no_tcr_final, expression = PDCD1>= 0.5 & CTLA4 >= 0.5)
+length(cphicells)
+
+no_tcr_final$cp_status <- ifelse(colnames(no_tcr_final) %in% cphicells, "CPhi", "CPlo")
+
+check_genes_t = no_tcr_final@meta.data[no_tcr_final@meta.data$cp_status == "CPhi", ]
+dim(check_genes_t)
+
+write.csv(check_genes, file = paste0(dir_out, "DEgenes/cp_status_genelist.csv"))
+```
+
+# figure S2 B
+Made manually
+
+
+###########
+```{r}
+CPhi_bulkRNAseq <- read_excel("Raw_data/TableS4_SupplementGeneSigs.xlsx", n_max = 200)$'CP Hi Signature (source - this paper)'
+CPlo_bulkRNAseq <- read_excel("Raw_data/TableS4_SupplementGeneSigs.xlsx", n_max = 200)$'CP Lo Signature (source - this paper)'
+```
+
+# Calculate mean and standard deviation for CP hi gene scores
+```{r}
+mean_cphi <- mean(no_tcr_final@meta.data$CPhi_bulkRNAseq2001)
+sd_cphi <- sd(no_tcr_final@meta.data$CPhi_bulkRNAseq2001)
+
+# Extract enrichment scores for CPhi and CPlo
+cphi_scores <- FetchData(no_tcr_final, vars = "CPhi_bulkRNAseq2001")
+dim(cphi_scores)
+
+```
+
+## Figure S2C
+```{r}
+Figure.S2C = hist(no_tcr_final@meta.data$CPhi_bulkRNAseq2001, breaks = 20, col = "lightblue", main = "Histogram of CP hi Gene Scores")
+abline(v = mean_cphi, col = "red", lwd = 2, lty = 2)  # Add mean line
+abline(v = mean_cphi + 1 * sd_cphi, col = "green", lwd = 2, lty = 2)  # Add threshold line
+abline(v = mean_cphi - 1 * sd_cphi, col = "green", lwd = 2, lty = 2)  # Add threshold line
+legend("topright", legend = c("Mean", "Threshold"), col = c("red", "green"), lty = 2)
+Figure.S2C 
+
+```
+```{r}
+
+# no_tcr_final$CPsig1<- ifelse(colnames(no_tcr_final) %in% rownames(cp_hi_data01), "CPsig1Hi", "CPsig1Lo")
+
+check_genes.1 = no_tcr_final@meta.data[no_tcr_final@meta.data$CPsig1  == "CPsig1Hi", ]
+dim(check_genes.1)
+```
+
+
+## Figure S2D
+```{r}
+Idents(no_tcr_final) = "CPsig1"
+# Assuming you have a Seurat object named 'no_tcr_final'
+# First, create a vector of colors based on the number of cells in each cluster
+cell_counts <- table(no_tcr_final$CPsig1)
+gray_color <- "gray90"  # Color for more cells
+blue_color <- "blue"    # Color for fewer cells
+
+# Assign colors based on cell counts
+cluster_colors <- ifelse(cell_counts > median(cell_counts), gray_color, blue_color)
+
+# Now create the DimPlot with custom colors
+Figure.S2D = DimPlot(no_tcr_final, label = F, cols = cluster_colors)+
+ggtitle("BulkRNAseq signature to get Insights into CPhi-CPlo Heterogeneity  in advanced melanoma")
+print(Figure.S2D)
+```
+
+## Figure S2E
+```{r}
+Figure.S2E = hist(no_tcr_final@meta.data$CPhi_bulkRNAseq2001, breaks = 20, col = "lightblue", main = "Histogram of CP hi Gene Scores")
+abline(v = mean_cphi, col = "red", lwd = 2, lty = 2)  # Add mean line
+abline(v = mean_cphi + .25 * sd_cphi, col = "green", lwd = 2, lty = 2)  # Add threshold line
+abline(v = mean_cphi - .25 * sd_cphi, col = "green", lwd = 2, lty = 2)  # Add threshold line
+legend("topright", legend = c("Mean: 0.2110595", "Threshold:+/-.25"), col = c("red", "green"), lty = 2)
+Figure.S2E
+```
+
+
+```{r}
+# Identify CP hi cells (above mean + 0.25 * sd)
+cp_hi_cells.25 <- cphi_scores > (mean_cphi + .25 * sd_cphi)
+dim(cp_hi_cells.25)
+# Identify CP lo cells (below mean - 0.25 * sd)
+cp_lo_cells.25 <- cphi_scores < (mean_cphi - .25 * sd_cphi)
+dim(cp_lo_cells.25)
+names(no_tcr_final@meta.data)
+# no_tcr_final$CPsig<- ifelse(colnames(no_tcr_final) %in% rownames(cp_hi_data.25), "CPsigHi", "CPsigLo")
+
+check_genes.25 = no_tcr_final@meta.data[no_tcr_final@meta.data$CPsig  == "CPsigHi", ]
+dim(check_genes.25)
+```
+
+## Figure S2F
+```{r}
+Idents(no_tcr_final) = "CPsig"
+# Assuming you have a Seurat object named 'no_tcr_final'
+# First, create a vector of colors based on the number of cells in each cluster
+cell_counts <- table(no_tcr_final$CPsig)
+gray_color <- "gray90"  # Color for more cells
+blue_color <- "blue"    # Color for fewer cells
+
+# Assign colors based on cell counts
+cluster_colors <- ifelse(cell_counts > median(cell_counts), gray_color, blue_color)
+
+# Now create the DimPlot with custom colors
+Figure.S2F = DimPlot(no_tcr_final, label = F, cols = cluster_colors)+
+ggtitle("BulkRNAseq sd 0.25 signature to get Insights into CPhi-CPlo Heterogeneity  in advanced melanoma")+
+theme(plot.title = element_text(size = 10))
+print(Figure.S2F)
+```
+
+
+```{r}
+#CPhi_bulkRNAseq    top 200 based on log2adgestedfdr value                          
+# no_tcr_final <- AddModuleScore(no_tcr_final,features = list(CPhi_bulkRNAseq),name="CPhi_bulkRNAseq")
+# no_tcr_final <- AddModuleScore(no_tcr_final,features = list(CPhi_bulkRNAseq[1:200]),name="CPhi_bulkRNAseq200")
+# no_tcr_final <- AddModuleScore(no_tcr_final,features = list(CPlo_bulkRNAseq),name="CPlo_bulkRNAseq")
+# no_tcr_final <- AddModuleScore(no_tcr_final,features = list(CPlo_bulkRNAseq[1:200]),name="CPlo_bulkRNAseq200")
+```
+```{r}
+CPhi_bulkRNAseq_plot200 = FeaturePlot(no_tcr_final,features = "CPhi_bulkRNAseq2001", label = F, repel = TRUE) +
+                             scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdBu")))     
+CPhi_bulkRNAseq_plot200
+
+CPlo_bulkRNAseq_plot200 = FeaturePlot(no_tcr_final,features = "CPlo_bulkRNAseq2001", label = F, repel = TRUE) +
+                             scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdBu")))     
+
+CPlo_bulkRNAseq_plot200
+
+#volplot cphi n cplo
+CPhi_bulkRNAseq_v3200 = VlnPlot_scCustom(seurat_object = no_tcr_final, features = "CPhi_bulkRNAseq2001", group.by = "cp_status",plot_boxplot = TRUE, colors_use = my_colors_cp_status)+labs(y = "Genescore")+
+ggtitle("CPhi Gene Signatures from Bulk RNA-Seq (Top 200)") #+stat_compare_means(method = "wilcox.test")
+print(CPhi_bulkRNAseq_v3200) 
+
+CPlo_bulkRNAseq_v3200 = VlnPlot_scCustom(seurat_object = no_tcr_final, features = "CPlo_bulkRNAseq2001", group.by = "cp_status",plot_boxplot = TRUE, colors_use = my_colors_cp_status)+labs(y = "Genescore")+
+ggtitle("CPlo Gene Signatures from Bluk-RNASeq top 200")# +stat_compare_means(method = "wilcox.test")
+CPlo_bulkRNAseq_v3200
+
+# pvalue
+pval.CPhi_bulkRNAseq_v3200 = wilcox.test(CPhi_bulkRNAseq2001 ~ ident,  data = as.data.frame(CPhi_bulkRNAseq_v3200$data))$p.value
+pval.CPhi_bulkRNAseq_v3200
+pval.CPlo_bulkRNAseq_v3200 = wilcox.test(CPlo_bulkRNAseq2001 ~ ident,  data = as.data.frame(CPlo_bulkRNAseq_v3200$data))$p.value
+pval.CPlo_bulkRNAseq_v3200
+```
+
+## Figure S2G
+```{r}
+Idents(no_tcr_final) <- "seurat_cluster.04"
+Figure.S2G = VlnPlot_scCustom(seurat_object = no_tcr_final, features = "CPhi_bulkRNAseq2001", plot_boxplot = T, colors_use = my_colors_cluster)+labs(y = "Genescore")+
+ggtitle("CPhi Signatures from Bluk-RNASeq")+
+theme(axis.text.x = element_text(size = 8, angle = 65),  # Adjust x-axis label font size
+        axis.text.y = element_text(size = 8, angle = 90))+  # Adjust y-axis label font size
+theme(legend.position = "none") 
+print(Figure.S2G)
+```
+
+## Figure S2H
+```{r}
+Figure.S2H = VlnPlot_scCustom(seurat_object = no_tcr_final, features = "CPlo_bulkRNAseq2001",plot_boxplot = T, colors_use = my_colors_cluster)+labs(y = "Genescore")+
+ggtitle("CPlo Signatures from Bluk-RNASeq")+
+theme(axis.text.x = element_text(size = 8, angle = 65),  # Adjust x-axis label font size
+        axis.text.y = element_text(size = 8, angle = 90))+  # Adjust y-axis label font size
+theme(legend.position = "none") 
+print(Figure.S2H)
+```
+
+## Figure S2I
+```{r}
+#  data_S_tcell.cd8$CPhi_Clusters_stat <- ifelse(data_S_tcell.cd8$seurat_cluster.04 %in% c(0,2,4,7,8), "CPhi_Clusters", "CPlo_Clusters")
+check_genes_clu_cphi = no_tcr_final@meta.data[no_tcr_final@meta.data$CPhi_Clusters_stat == "CPhi_Clusters", ]
+dim(check_genes_clu_cphi)
+
+my_colors_cp_status =c("blue", "gray90")
+CPhi_Clusters_plot = DimPlot(no_tcr_final, reduction = "umap", group.by = "CPhi_Clusters_stat", label = F, cols = my_colors_cp_status) + ggtitle("CPhi: 0,2,4,7,8")
+CPhi_Clusters_plot
+```

@@ -1,0 +1,141 @@
+---
+title: "PS0012-Figur-S7"
+output: github_document
+Author: "Prachi Sao"
+Date: "2021-06-30"
+organization:"PAUKEN LAB, MD ANDERSON CANCER CENTER"
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+CPhi_bulkRNAseq2001 <- read_excel("Raw_data/TableS4_SupplementGeneSigs.xlsx", n_max = 200)$'CP Hi Signature (source - this paper)'
+CPlo_bulkRNAseq2001 <- read_excel("Raw_data/TableS4_SupplementGeneSigs.xlsx", n_max = 200)$'CP Lo Signature (source - this paper)'
+
+```
+
+## Figure S7 A1
+```{r}
+Figure.S7.A1 = FeaturePlot(no_tcr_final,features = "CPhi_bulkRNAseq2001", label = F, repel = TRUE) +
+                             scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdBu")))     
+Figure.S7.A1
+```
+
+## Figure S7 A2
+```{r}
+Figure.S7.A2 = VlnPlot_scCustom(seurat_object = no_tcr_final, features = "CPhi_bulkRNAseq2001", group.by = "cp_status",plot_boxplot = TRUE, colors_use = my_colors_cp_status)+labs(y = "Genescore")+
+ggtitle("CPhi Gene Signatures from Bulk RNA-Seq (Top 200)")# +stat_compare_means(method = "wilcox.test")
+print(Figure.S7.A2) 
+```
+
+## Figure S7 B1
+```{r}
+Figure.S7.B1 = FeaturePlot(no_tcr_final,features = "CPlo_bulkRNAseq2001", label = F, repel = TRUE) +
+                             scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdBu")))     
+
+Figure.S7.B1
+```
+
+## Figure S7 B2
+```{r}
+CPlo_bulkRNAseq_v3200 = VlnPlot_scCustom(seurat_object = no_tcr_final, features = "CPlo_bulkRNAseq2001", group.by = "cp_status",plot_boxplot = TRUE, colors_use = my_colors_cp_status)+labs(y = "Genescore")+
+ggtitle("CPlo Gene Signatures from Bluk-RNASeq top 200")# +stat_compare_means(method = "wilcox.test")
+CPlo_bulkRNAseq_v3200
+```
+
+
+```{r}
+SadeFeldman_CD8_B <- read_excel("Raw_data/TableS4_SupplementGeneSigs.xlsx")$'Sade Feldman CD8 B (source Sade-Feldman et al. 2018)'
+length(SadeFeldman_CD8_B)
+SadeFeldman_CD8_G <- read_excel("Raw_data/TableS4_SupplementGeneSigs.xlsx", n_max = 34)$'Sade Feldman CD8 G (source Sade-Feldman et al. 2018)'
+length(SadeFeldman_CD8_G)
+Trm_signature<- read_excel("Raw_data/TableS4_SupplementGeneSigs.xlsx", n_max = 143)$'TRM (source Han et al. 2021)'
+cell_cycle_all_strong <- read_excel("Raw_data/TableS4_SupplementGeneSigs.xlsx", n_max = 96)$'Cell Cycle (source Kowalczyk et al. 2015)'
+Glycolytic <- read_excel("Raw_data/TableS4_SupplementGeneSigs.xlsx", n_max = 200)$'Glycolytic (source HALLMARKS database from MSigDB)'
+
+``` 
+
+
+
+## Figure S7 C
+```{r}
+CPhi_bulkSadeFeldman = VlnPlot_scCustom(seurat_object = no_tcr_final, features = "SadeFeldman_CD8_B1", group.by = "CPsig1",plot_boxplot = TRUE, colors_use = my_colors_cp_status)+labs(y = "Genescore")+
+ggtitle("CPsig1 Gene Signatures from Bluk-RNASeq with cut off 01, SadeFeldman_CD8_B1")# + stat_compare_means(method = "wilcox.test", exact = T)
+print(CPhi_bulkSadeFeldman)
+
+CPhi_bulkSadeFeldman_CD8_G1 = VlnPlot_scCustom(seurat_object = no_tcr_final, features = "SadeFeldman_CD8_G1", group.by = "CPsig1",plot_boxplot = TRUE, colors_use = my_colors_cp_status)+labs(y = "Genescore")+
+ggtitle("CPsig1 Gene Signatures from Bluk-RNASeq with cut off 1, SadeFeldman_CD8_G1")#+ stat_compare_means(method = "wilcox.test")
+print(CPhi_bulkSadeFeldman_CD8_G1)
+
+CPhi_bulkTrm_signature = VlnPlot_scCustom(seurat_object = no_tcr_final, features = "Trm_signature1", group.by = "CPsig1",plot_boxplot = TRUE, colors_use = my_colors_cp_status)+labs(y = "Genescore")+
+ggtitle("CPsig1 Gene Signatures from Bluk-RNASeq with cut off1,  Trm_signature1")+ stat_compare_means(method = "wilcox.test")
+print(CPhi_bulkTrm_signature)
+
+CPhi_bulkcell_cycle = VlnPlot_scCustom(seurat_object = no_tcr_final, features = "cell_cycle_all_strong1", group.by = "CPsig1",plot_boxplot = TRUE, colors_use = my_colors_cp_status)+labs(y = "Genescore")+
+ggtitle("CPsig1 Gene Signatures from Bluk-RNASeq with cut off  01 cell_cycle_all_strong1")#+ stat_compare_means(method = "wilcox.test")
+print(CPhi_bulkcell_cycle)
+
+CPhi_bulkGlycolytic = VlnPlot_scCustom(seurat_object = no_tcr_final, features = "Glycolytic1", group.by = "CPsig1",plot_boxplot = TRUE, colors_use = my_colors_cp_status)+labs(y = "Genescore")+
+ggtitle("CPsig1 Gene Signatures from Bluk-RNASeq with cut off 01  Glycolytic1")#+ stat_compare_means(method = "wilcox.test")
+print(CPhi_bulkGlycolytic)
+```
+
+## Figure S7 D
+```{r}
+CPhi_bulkRNA.25SadeFeldman_CD8_B1 = VlnPlot_scCustom(seurat_object = no_tcr_final, features = "SadeFeldman_CD8_B1", group.by = "CPsig",plot_boxplot = TRUE, colors_use = my_colors_cp_status)+labs(y = "Genescore")+
+ggtitle("CPsig Gene Signatures from Bluk-RNASeq with cut off 0.25 with SadeFeldman_CD8_B1")+
+theme(plot.title = element_text(size = 10))#+ stat_compare_means(method = "wilcox.test")
+print(CPhi_bulkRNA.25SadeFeldman_CD8_B1 )
+
+CPhi_bulkRNA.25SadeFeldman_CD8_G1 = VlnPlot_scCustom(seurat_object = no_tcr_final, features = "SadeFeldman_CD8_G1", group.by = "CPsig",plot_boxplot = TRUE, colors_use = my_colors_cp_status)+labs(y = "Genescore")+
+ggtitle("CPsig Gene Signatures from Bluk-RNASeq with cut off 0.25 with SadeFeldman_CD8_G1")+
+theme(plot.title = element_text(size = 10))+ stat_compare_means(method = "wilcox.test")
+print(CPhi_bulkRNA.25SadeFeldman_CD8_G1 )
+
+CPhi_bulkRNA.25Trm_signature1 = VlnPlot_scCustom(seurat_object = no_tcr_final, features = "Trm_signature1", group.by = "CPsig",plot_boxplot = TRUE, colors_use = my_colors_cp_status)+labs(y = "Genescore")+
+ggtitle("CPsig Gene Signatures from Bluk-RNASeq with cut off 0.25 with Trm_signature1")+
+theme(plot.title = element_text(size = 10))+ stat_compare_means(method = "wilcox.test")
+print(CPhi_bulkRNA.25Trm_signature1 )
+
+CPhi_bulkRNA.25cell_cycle_all_strong = VlnPlot_scCustom(seurat_object = no_tcr_final, features = "cell_cycle_all_strong1", group.by = "CPsig",plot_boxplot = TRUE, colors_use = my_colors_cp_status)+labs(y = "Genescore")+
+ggtitle("CPsig Gene Signatures from Bluk-RNASeq with cut off 0.25 with cell_cycle_all_strong1")+
+theme(plot.title = element_text(size = 10))+ stat_compare_means(method = "wilcox.test")
+print(CPhi_bulkRNA.25cell_cycle_all_strong )
+
+CPhi_bulkRNA.25Glycolytic = VlnPlot_scCustom(seurat_object = no_tcr_final, features = "Glycolytic1", group.by = "CPsig",plot_boxplot = TRUE, colors_use = my_colors_cp_status)+labs(y = "Genescore")+
+ggtitle("CPsig Gene Signatures from Bluk-RNASeq with cut off 0.25 with Glycolytic")+
+theme(plot.title = element_text(size = 10))+ stat_compare_means(method = "wilcox.test")
+print(CPhi_bulkRNA.25Glycolytic )
+```
+
+## Figure S7 E
+```{r}
+CPhi_ClustersSadeFeldman_CD8_B1 = VlnPlot_scCustom(seurat_object = no_tcr_final, features = "SadeFeldman_CD8_B1", group.by = "CPhi_Clusters_stat",plot_boxplot = TRUE, colors_use = my_colors_cp_status)+labs(y = "Genescore")+
+ggtitle("Cphi Cluster SadeFeldman_CD8_B1")+
+theme(plot.title = element_text(size = 10))# + stat_compare_means(method = "wilcox.test")# hjust = "inward", vjust = "inward") 
+
+CPhi_ClustersSadeFeldman_CD8_B1 
+
+CPhi_ClustersSadeFeldman_CD8_G1 = VlnPlot_scCustom(seurat_object = no_tcr_final, features = "SadeFeldman_CD8_G1", group.by = "CPhi_Clusters_stat",plot_boxplot = TRUE, colors_use = my_colors_cp_status)+labs(y = "Genescore")+
+ggtitle("CphiCluster SadeFeldman_CD8_G1")+
+theme(plot.title = element_text(size = 10)) #+ stat_compare_means(method = "wilcox.test")#, hjust = "inward", vjust = "inward") 
+print(CPhi_ClustersSadeFeldman_CD8_G1 )
+
+CPhi_ClustersTrm_signature1 = VlnPlot_scCustom(seurat_object = no_tcr_final, features = "Trm_signature1", group.by = "CPhi_Clusters_stat",plot_boxplot = TRUE, colors_use = my_colors_cp_status)+labs(y = "Genescore")+
+ggtitle("CphiCluster  Trm_signature1")+
+theme(plot.title = element_text(size = 10)) #+ stat_compare_means(method = "wilcox.test")
+print(CPhi_ClustersTrm_signature1 )
+
+CPhi_Clusterscell_cycle_all_strong = VlnPlot_scCustom(seurat_object = no_tcr_final, features = "cell_cycle_all_strong1", group.by = "CPhi_Clusters_stat",plot_boxplot = TRUE, colors_use = my_colors_cp_status)+labs(y = "Genescore")+
+ggtitle("CphiCluster  cell_cycle_all_strong1")+
+theme(plot.title = element_text(size = 10)) #+ stat_compare_means(method = "wilcox.test")
+print(CPhi_Clusterscell_cycle_all_strong )
+
+CPhi_ClustersGlycolytic = VlnPlot_scCustom(seurat_object = no_tcr_final, features = "Glycolytic1", group.by = "CPhi_Clusters_stat",plot_boxplot = TRUE, colors_use = my_colors_cp_status)+labs(y = "Genescore")+
+ggtitle("CphiCluster  Glycolytic")+
+theme(plot.title = element_text(size = 10))# + stat_compare_means(method = "wilcox.test")
+print(CPhi_ClustersGlycolytic )
+```

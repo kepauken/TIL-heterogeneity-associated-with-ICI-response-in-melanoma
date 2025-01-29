@@ -1,0 +1,253 @@
+---
+title: "PS002-Figur-S8-LDA-Topic-Models"
+output: github_document
+Author: "Prachi Sao"
+Date: "2021-06-30"
+organization:"PAUKEN LAB, MD ANDERSON CANCER CENTER"
+code udopted: https://rdrr.io/github/JuliusCampbell/TITAN/f/vignettes/TITAN_vignette.Rmd
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+# This script reads a Seurat object from an RDS file, runs Latent Dirichlet Allocation (LDA) on the object, and saves the resulting LDA model to an RDS file.
+# - Running Latent Dirichlet Allocation (LDA) on the Seurat object with specified parameters.
+# - Displaying the head of the resulting LDA model.
+# - Saving the LDA model to an RDS file.
+```
+
+```{r}
+set.seed(1) #set a seed for reproducibility
+options(future.globals.maxSize = +Inf)
+
+library(stringr)
+library(TITAN)
+library(Seurat)
+library(tidyverse)
+library(gridExtra)
+```
+
+# This script reads a Seurat object from an RDS file, filters out genes with 
+# high expression (greater than 98% of cells), and creates a new Seurat object 
+# with these genes removed. The filtered Seurat object can then be saved to a 
+# new RDS file (the saveRDS line is currently commented out).
+# LDA is a type of topic modeling technique used to identify topics within a set of documents or, in this case, within a set of gene expression data.
+# Steps:
+# 1. Load the Seurat object from the specified RDS file.
+# 2. Extract the counts matrix from the RNA assay.
+# 3. Calculate the percentage of cells expressing each gene.
+# 4. Identify genes expressed in more than 98% of cells.
+# 5. Filter out these highly expressed genes from the Seurat object.
+# 6. Optionally, save the filtered Seurat object to a new RDS file.
+```{r}
+SeuratObj <- readRDS("Results /RDS/PS00111-cd8_cca_integrated_res04_final_04_22_2024_final.rds")
+counts <- SeuratObj@assays[["RNA"]]$counts
+genes.percent.expression <- rowMeans(counts > 0) * 100
+genes.filter <- names(genes.percent.expression[genes.percent.expression > 98])
+genes.filter
+
+SeuratObj.fil <- SeuratObj[!grepl(paste(genes.filter, collapse = "|"), rownames(SeuratObj)), ]
+SeuratObj.fil
+# saveRDS(SeuratObj.fil, file = "PS00121-cd8-final_05-27_2024_lda_filtered.rds")
+```
+
+# generate an LDA model that identifies 15 topics within the gene expression data, using the specified normalization method and number of iterations. 
+# This model can then be used for further analysis, such as identifying the top genes associated with each topic or visualizing the distribution of topics across different cell clusters
+
+```{r}
+SeuratObj <- readRDS("Raw_data/cd8-final_05-27_2024_lda_filtered.rds")
+SeuratObj
+# names(SeuratObj@meta.data)
+# LDA_model <- runLDA(SeuratObj, ntopics = 15, normalizationMethod = "CLR", seed.number = 8,  iterations = 1500)
+# head(LDA_model)
+ 
+# saveRDS(LDA_model, file = "Results/RDS/PS002-LDA-Topic-Models-2025-1-1.rds")
+```
+
+# It adds the LDA topics to the Seurat object using the addTopicsToSeuratObject function. 
+# The code then calculates gene scores based on the LDA model with GeneScores and extracts the topics associated with the Seurat object using GetTopics. 
+# It selects metadata columns starting with "Topic" and assigns them to LDA_topics.6. 
+# The variable name is set to "15topics" for further use. This setup prepares the data for subsequent analysis and visualization.
+
+```{r}
+top_model <- readRDS("Results/RDS/PS002-LDA-Topic-Models-2025-1-1.rds")#LDA_model
+
+SeuratObj <- addTopicsToSeuratObject(model = top_model, Object = SeuratObj)
+
+GeneDistrubition <- GeneScores(top_model)
+head(GeneDistrubition )
+names(SeuratObj)
+LDA_topics <- GetTopics(top_model, SeuratObj )
+colnames(LDA_topics)
+names(SeuratObj@meta.data)
+LDA_topics.6 <- SeuratObj@meta.data %>% select(starts_with("Topic"))
+colnames(LDA_topics.6)
+name= "15topics"
+```
+
+```{r}
+TopicGenes <- TopTopicGenes(top_model, ngenes = 50) 
+top_50 = head(TopicGenes[,1:15], 50) 
+write.csv(top_50, file = paste0("Results/files/PS00122-TopicGenes-filt-05-27-24",name,".csv"))
+```
+
+```{r}
+HeatmapTopic(Object = SeuratObj,
+        topics =  LDA_topics,
+        AnnoVector = SeuratObj@meta.data$seurat_cluster.04,
+        AnnoName = "Time Point")
+FeaturePlot(SeuratObj, 
+            pt.size = 0.01, 
+            features  = paste("Topic", 1:5, sep = "_"), 
+            ncol = 2, 
+            min.cutoff = 'q1')
+FeaturePlot(SeuratObj, 
+            pt.size = 0.01, 
+            features  = paste("Topic", 6:10, sep = "_"), 
+            ncol = 2, 
+            min.cutoff = 'q1')
+FeaturePlot(SeuratObj, 
+            pt.size = 0.01, 
+            features  = paste("Topic", 11:15, sep = "_"), 
+            ncol = 2, 
+            min.cutoff = 'q1')
+```
+
+```{r}
+topic_ECDF_df_list_lda.6 <- list()
+topic_ECDF_plot = list()
+pval = list()
+
+for (topic in colnames(LDA_topics.6)) {print(topic)
+topic_ECDF.6 <- data.frame(
+    Cluster = SeuratObj$seurat_cluster.04,
+    top = SeuratObj[[topic]],
+    cpstatus = SeuratObj$cp_status,
+    CPsig_blk = SeuratObj$CPsig )
+    name = topic
+    head(topic_ECDF.6)
+    topic_ECDF_df_list_lda.6[[topic]] <- topic_ECDF.6
+    }
+  
+plot_ecdf = function(topic_name, i) {
+    ggplot(topic_ECDF_df_list_lda.6[[i]], aes(x = .data[[topic_name]], colour = cpstatus)) +
+        stat_ecdf(show.legend =  T) + 
+        ggtitle(topic_name) +
+        labs(y = "ECDF") +
+        xlim(-1, 3)+
+        theme_classic()
+}
+
+na = colnames(LDA_topics.6)
+length(na)
+topic_ECDF_plot <- list()
+for(i in 1:length(na)) {
+    topic_ECDF_plot[[i]] <- plot_ecdf(na[i], i)
+}
+plot = do.call(grid.arrange, c(topic_ECDF_plot[1:5], ncol = 3))
+plot
+plot1 = do.call(grid.arrange, c(topic_ECDF_plot[6:10], ncol = 3))
+plot1
+plot2 = do.call(grid.arrange, c(topic_ECDF_plot[11:15], ncol = 3))
+plot2
+```
+
+```{r}  
+
+    pval_topic.1 <- wilcox.test(Topic_1 ~ cpstatus,  data = topic_ECDF_df_list_lda.6[[1]])$p.value
+    pval_topic.2 <- wilcox.test(Topic_2 ~ cpstatus,  data = topic_ECDF_df_list_lda.6[[2]])$p.value
+    pval_topic.3 <- wilcox.test(Topic_3 ~ cpstatus,  data = topic_ECDF_df_list_lda.6[[3]])$p.value
+    pval_topic.4 <- wilcox.test(Topic_4 ~ cpstatus,  data = topic_ECDF_df_list_lda.6[[4]])$p.value
+    pval_topic.5 <- wilcox.test(Topic_5 ~ cpstatus,  data = topic_ECDF_df_list_lda.6[[5]])$p.value
+    pval_topic.6 <- wilcox.test(Topic_6 ~ cpstatus,  data = topic_ECDF_df_list_lda.6[[6]])$p.value
+    pval_topic.7 <- wilcox.test(Topic_7 ~ cpstatus,  data = topic_ECDF_df_list_lda.6[[7]])$p.value
+    pval_topic.8 <- wilcox.test(Topic_8 ~ cpstatus,  data = topic_ECDF_df_list_lda.6[[8]])$p.value
+    pval_topic.9 <- wilcox.test(Topic_9 ~ cpstatus,  data = topic_ECDF_df_list_lda.6[[9]])$p.value
+    pval_topic.10 <- wilcox.test(Topic_10 ~ cpstatus,  data = topic_ECDF_df_list_lda.6[[10]])$p.value
+    pval_topic.11 <- wilcox.test(Topic_11 ~ cpstatus,  data = topic_ECDF_df_list_lda.6[[11]])$p.value
+    pval_topic.12 <- wilcox.test(Topic_12 ~ cpstatus,  data = topic_ECDF_df_list_lda.6[[12]])$p.value
+    pval_topic.13 <- wilcox.test(Topic_13 ~ cpstatus,  data = topic_ECDF_df_list_lda.6[[13]])$p.value
+    pval_topic.14 <- wilcox.test(Topic_14 ~ cpstatus,  data = topic_ECDF_df_list_lda.6[[14]])$p.value
+    pval_topic.15 <- wilcox.test(Topic_15 ~ cpstatus,  data = topic_ECDF_df_list_lda.6[[15]])$p.value
+    pval <- list(pval_topic.1, pval_topic.2, pval_topic.3, pval_topic.4, pval_topic.5, pval_topic.6, pval_topic.7, pval_topic.8, pval_topic.9, pval_topic.10, pval_topic.11, pval_topic.12, pval_topic.13, pval_topic.14, pval_topic.15)
+ pval_df <- data.frame(Topic = 1:15, P_Value = unlist(pval))
+    pval_df
+    write.csv(pval_df, file = paste0("./Results/files/PS002-LDA-Topic-Models-2025",name,".csv"))
+```
+
+```{r}  
+topic_gene15 <- as.data.frame(GeneDistrubition)
+topic_gene15 <-tibble::rownames_to_column(topic_gene15, "Genes")
+head(topic_gene15)
+# keep column genes as character and rest columns as numeric
+topic_gene15 <- topic_gene15 %>% mutate(across(-Genes, as.numeric))
+generate_bar_plot <- function(topic_df, topic_num) {
+    topic_df <- topic_df %>% filter(.data[[paste0("Topic_", topic_num)]] > 0.001)
+    topic_df <- topic_df %>% arrange(desc(.data[[paste0("Topic_", topic_num)]]))
+    dim(topic_df)
+    topic_df <- head(topic_df, 20)
+    ggplot(topic_df, aes(x = reorder(Genes, +.data[[paste0("Topic_", topic_num)]]), y = .data[[paste0("Topic_", topic_num)]])) +
+        geom_bar(stat = "identity") +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 12), 
+              axis.text.y = element_text(size = 12), 
+              plot.title = element_text(size = 14, face = "bold"), 
+              axis.title = element_text(size = 12)) +
+        ggtitle(paste0("Topic ", topic_num)) +
+        xlab("Genes") +
+        ylab(paste0("Topic ", topic_num)) +
+        theme_classic() +
+        coord_flip() 
+}
+# Apply the function for each topic
+topic_bar_plot = list()
+length(na)
+for (i in 1:length(na)) {
+    topic_bar_plot[[i]] <- generate_bar_plot(topic_gene15, i)
+}
+
+plot = do.call(grid.arrange, c(topic_bar_plot[1:5], ncol = 3))
+plot
+ plot1 = do.call(grid.arrange, c(topic_bar_plot[6:10], ncol = 3))
+plot1
+ plot2 = do.call(grid.arrange, c(topic_bar_plot[11:15], ncol = 3))
+plot2
+```
+
+```{r}
+save.image(file = "Results/RDS/PS002-LDA-Topic-Models_obj-2025.RData")
+saveRDS(SeuratObj, file = "Results/RDS/PS002-LDA-Topic-Models-2025_object.rds")
+```
+
+
+# Figure 3A 
+topic_bar_plot[4]
+topic_ECDF_plot[4]
+
+# Figure 3B
+topic_bar_plot[6]
+topic_ECDF_plot[6]
+
+# Figure S8A
+topic_bar_plot[5]
+topic_ECDF_plot[5]
+
+# Figure S8B
+topic_bar_plot[14]
+topic_ECDF_plot[14]
+
+# Figure S8C
+topic_bar_plot[10]
+topic_ECDF_plot[10]
+
+# Figure S8D
+topic_bar_plot[15]
+topic_ECDF_plot[15]
+
+# Figure S8E
+topic_bar_plot[9]
+topic_ECDF_plot[9]
+
+# Figure S8F
+topic_bar_plot[2]
+topic_ECDF_plot[2]

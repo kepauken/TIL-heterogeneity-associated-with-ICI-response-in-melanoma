@@ -1,0 +1,502 @@
+---
+title: "PS003-Figur-S4-validation-sadefeldman"
+output: github_document
+Author: "Prachi Sao"
+Date: "2021-06-30"
+organization:"PAUKEN LAB, MD ANDERSON CANCER CENTER"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r setup, include = FALSE}
+library(knitr)
+library(Seurat, quietly = TRUE) # Single-cell RNA-seq analysis
+library(Azimuth, quietly = TRUE) # Reference-based single-cell RNA-seq analysis
+library(presto, quietly = TRUE) # Fast differential expression analysis
+library(dplyr, quietly = TRUE) # Data manipulation
+library(cowplot, quietly = TRUE) # Plotting
+library(viridis, quietly = TRUE) # Color palettes
+library(gridExtra, quietly = TRUE) # Miscellaneous functions for "grid" graphics
+library(data.table, quietly = TRUE) # Data manipulation
+library(tibble, quietly = TRUE) # Data frames
+library(Matrix, quietly = TRUE) # Sparse and dense matrix classes and methods
+library(ggplot2, quietly = TRUE) # Data visualization
+library(patchwork, quietly = TRUE) # Combine plots
+library(grid, quietly = TRUE) # The Grid Graphics Package
+library(RColorBrewer, quietly = TRUE) # Color palettes
+library(pheatmap, quietly = TRUE) # Pretty heatmaps
+library(purrr, quietly = TRUE) # Functional programming tools
+library(MatrixGenerics, quietly = TRUE) # S4 generic functions for matrix objects
+library(tidyverse, quietly = TRUE) # Data science packages
+library(circlize, quietly = TRUE) # Circular visualization
+library(scCustomize, quietly = TRUE) # Customization for single-cell analysis
+library(qs, quietly = TRUE) # Quick serialization of R objects
+library(dittoSeq, quietly = TRUE) # Visualization of single-cell and bulk RNA-seq data
+library(ggpubr, quietly = TRUE) # 'ggplot2' based publication ready plots
+library(reshape2, quietly = TRUE) # Flexibly reshape data
+require(fgsea, quietly = TRUE) # GSEA analysis
+require(useful, quietly = TRUE) # Corner function to peek at data.frames
+require(readxl, quietly = TRUE) # Reading Excel files
+require(msigdbr, quietly = TRUE) # MSigDB gene sets
+
+set.seed(1) #set a seed for reproducibility
+```
+
+# Load data
+<!-- Read processed file, metadata & cluster information files
+Make a seurat object using variable information info from paper
+To check if the data set is uploaded correctly, I also plotted TSNE plot with cluster information avaible from the paper and got exact same no. Of cells for each cluster 
+Followed seurat standard protocol  -->
+
+```{r}
+project = "PS00131"
+
+    exp.mat <- read.table("Raw_data/validation/GSE120575_Sade_Feldman_melanoma_single_cells_TPM_GEO.txt.gz", sep = "\t", header = F, row.names = 1, stringsAsFactors = F, skip = 2)
+    exp.mat <- exp.mat[,-16292]
+    data_colInfo =read.table("Raw_data/validation/GSE120575_Sade_Feldman_melanoma_single_cells_TPM_GEO.txt.gz",  sep = "\t", header = F, stringsAsFactors = F, nrows = 2)
+    data_colInfo <- data_colInfo[,-1]
+    colnames(exp.mat) <- data_colInfo[1,]
+    data_exp <- Matrix(as.matrix(exp.mat), sparse = T)
+    head(data_exp,50)
+    meta <- read.table("Raw_data/validation/GSE120575_patient_ID_single_cells.txt.gz", header = T, sep = "\t", skip = 19, nrows = 16291)
+    meta <- meta[, 1:7]
+   mean(colnames(data_exp) == meta$title)
+   rownames(meta) <- meta$title
+
+    colnames(meta)
+    lesion <- factor(meta$characteristics..patinet.ID..Pre.baseline..Post..on.treatment.)
+    treat <- factor(ifelse(grepl("Post", lesion), "Post", "Pre"))
+    response <- factor(meta$characteristics..response)
+    therapy <- factor(meta$characteristics..therapy)
+
+    cluster_info <- read.table("Raw_data/validation/melanoma_cluster_info.txt", sep = "\t", header = T, stringsAsFactors = F)
+    rownames(cluster_info) <- cluster_info$Cell.Name
+```
+```{r}
+    ## Create Seurat object and add meta data
+    query.object <- CreateSeuratObject(counts = data_exp, project = "SadeFeldman")
+    names(query.object@meta.data)
+    query.object@meta.data$lesion <- lesion
+    query.object@meta.data$Time <- treat
+    query.object@meta.data$Response <- response
+    query.object@meta.data$Therapy <- therapy
+
+query.object@meta.data$cluster <- paste0("G", cluster_info$Cluster.number)
+query.object@meta.data$cluster <- factor(query.object@meta.data$cluster, levels = paste0("G", c(1:11)))
+cluster2celltype <- c(
+  "G1"="G1-B cells", "G2"="G2-Plasma cells", "G3"="G3-Monocytes/Macrophages", "G4"="G4-Dendritic cells",
+  "G5"="G5-Lymphocytes", "G6"="G6-Exhausted CD8+ T cells", "G7"="G7-Regulatory T cells", 
+  "G8"="G8-Cytotoxicity Lymphocytes", "G9"="G9-Exhausted/HS CD8+ T cells", "G10"="G10-Memory T cells",
+  "G11"="G11-Lymphocytes exhausted/cell cycle"
+)
+
+query.object@meta.data$cell_type <- cluster2celltype[as.character(query.object@meta.data$cluster)]
+query.object@meta.data$cell_type <- factor(query.object@meta.data$cell_type, levels = c(cluster2celltype))
+
+
+#Some basic statistics - cells per group (Pre vs. Post, Therapy, Responder vs. Non-responder)
+query.object <- UpdateSeuratObject(query.object)
+table(query.object$Time)
+table(query.object$Therapy)
+table(query.object$Response)
+
+saveRDS(query.object,"Results/RDS/PS003-Figur-S4-validation-sadefeldman-query.rds")
+``` 
+
+```{r}
+data_S <- NormalizeData(query.object)
+# scale data
+data_S <- ScaleData(data_S)
+
+# calculate gene variance to set variable genes
+gene_var <- apply(data_exp, 1, var)
+VariableFeatures(data_S) <- names(gene_var)[gene_var > 6]
+# Identify the 10 most highly variable genes
+top10 <- head(VariableFeatures(data_S), 10)
+
+
+# data_S = FindVariableFeatures(data_S, selection.method = "vst", nfeatures = 2000)
+data_S = RunPCA(data_S,features = VariableFeatures(data_S), verbose=F)
+data_S = RunUMAP(data_S,reduction = "pca", dims = 1:50)
+data_S = RunTSNE(data_S,dims.use = 1:10 )
+data_S = FindNeighbors(data_S,dims = 1:50) 
+data_S = FindClusters(data_S ,resolution = 0.25, cluster.name = "seurat_clusters.03")
+
+names(data_S@meta.data)
+Idents(data_S) = "seurat_clusters.03"
+
+t2 = TSNEPlot(data_S, group.by = "seurat_clusters.03", label = TRUE, pt.size = 0.7)  
+t2
+UMAPPlot(data_S, group.by = "seurat_clusters.03", label = TRUE, pt.size = 0.5) 
+pca_embedding <- data_S@reductions$pca@cell.embeddings
+umap_embedding <- data_S@reductions$umap@cell.embeddings
+tsne_embedding <- data_S@reductions$tsne@cell.embeddings
+saveRDS(query.object,"Results/RDS/PS003-Figur-S4-validation-sadefeldman.rds")
+```
+
+# filter out CD3E>0
+```{r}
+tcells <- c(WhichCells(data_S, idents = c("0","1","2","3","6","7","8","11")), WhichCells(data_S, expression = CD3E > 0))
+length(tcells)
+remove.clusters= c("4","5","9","10")
+
+##Based on CD3E percentage clusters 0, 1,2,3,6,7,8,11 are T-cell , 
+# hence a subset of these cluster was taken 1st followed by re-clustering and filtering DC8 cells. 
+
+
+data_S_tcell <- subset(data_S, idents = remove.clusters, invert = T)
+no.of.Tcells <- dim(data_S_tcell)[2]
+print(paste("Total number of cells:", no.of.Tcells))
+DimPlot(data_S_tcell, reduction = "umap", label = TRUE, label.size = 5)
+
+data_S_tcell <- ScaleData(data_S_tcell, verbose = FALSE) #scale the RNA data
+data_S_tcell <- RunPCA(data_S_tcell, npcs = 10, verbose = FALSE) #run PCA
+data_S_tcell <- RunUMAP(data_S_tcell, reduction = "pca", dims = 1:10)
+data_S_tcell =  RunTSNE(data_S_tcell,dims.use = 1:10 )
+data_S_tcell <- FindNeighbors(data_S_tcell, reduction = "pca", dims = 1:10)
+data_S_tcell <- FindClusters(data_S_tcell, resolution = 0.4, cluster.name = "sub_cluster.3")
+Idents(data_S_tcell) = "sub_cluster.3"
+p_cluster.tcell <- DimPlot(data_S_tcell, reduction = "umap", label = TRUE, label.size = 5) + theme(legend.position = "none")
+p_cluster.tcell
+p_markers.tcell <- FeaturePlot(data_S_tcell, "CD8A", max.cutoff = 10, label = T)
+p_markers.tcell
+```
+
+
+# filter CD8 cells
+```{r}
+percent_stats.tcell <- round(Percent_Expressing(data_S_tcell, features = c('CD4', 'CD8A'), threshold = 0))
+   t(percent_stats.tcell)
+
+#Based on the CD8 and CD4  absolute no. and percentage of all the marker, cluster 0,1,2,4,5,6,7,8, are cd8 t-cells
+
+
+cluster.to.remove = c("3","9","10")
+data_S_tcell.cd8 <- subset(data_S_tcell, idents = cluster.to.remove, invert = T)
+no.of.Tcells.cd8 <- dim(data_S_tcell.cd8)[2]
+print(paste("Total number of cells:", no.of.Tcells.cd8))
+data_S_tcell.cd8 <- ScaleData(data_S_tcell.cd8, verbose = FALSE) #scale the RNA data
+data_S_tcell.cd8 <- RunPCA(data_S_tcell.cd8, npcs = 30, verbose = FALSE) #run PCA
+data_S_tcell.cd8 <- RunUMAP(data_S_tcell.cd8, reduction = "pca", dims = 1:30)
+data_S_tcell.cd8=   RunTSNE(data_S_tcell.cd8,dims.use = 1:10 )
+data_S_tcell.cd8 <- FindNeighbors(data_S_tcell.cd8, reduction = "pca", dims = 1:30)
+data_S_tcell.cd8 <- FindClusters(data_S_tcell.cd8, resolution = 0.15, cluster.name = "sub_cluster_cd8.3")
+
+Idents(data_S_tcell.cd8) = "sub_cluster_cd8.3"
+UMAPPlot(data_S_tcell.cd8, group.by = "sub_cluster_cd8.3", label = TRUE, pt.size = 0.5) 
+```
+
+```{r}
+knownGenes = c("CD4","CD8A","CD8B","CD3D",
+              "CD3E","CD3G","PDCD1","CTLA4",
+              "GZMA","GZMB","MKI67","SELL",
+              "TCF7","HAVCR2","IFNG","FOXP3")
+percent_stats.cd8 <- round(Percent_Expressing(data_S_tcell.cd8, features = knownGenes, threshold = 0))
+   t(percent_stats.cd8)
+
+print(table(data_S_tcell.cd8@meta.data$sub_cluster_cd8.3))
+
+gene.in.each.cluster <-function(cluster) {
+    cells.pdcd1 <- WhichCells(data_S_tcell.cd8, expression = PDCD1>0.3, idents = cluster)
+    cells.ctla4 <- WhichCells(data_S_tcell.cd8, expression = CTLA4>0.3, idents = cluster)
+    cells.PDCD1.CTLA4 <- WhichCells(data_S_tcell.cd8, expression = PDCD1>0.3 & CTLA4 >0.3, idents = cluster)
+    return(data.frame(Cluster = cluster,PDCD1.CTLA4 = length(cells.PDCD1.CTLA4), PDCD1 = length(cells.pdcd1), CTLA4 = length(cells.ctla4)))
+}
+t.cell.clusters =levels(Idents(data_S_tcell.cd8))
+# t.cell.clusters = c(levels(Idents(data_S)))
+t.cell.table = list()
+Idents(data_S_tcell.cd8) 
+for(t in t.cell.clusters){
+ t.cell.table[[t]] = gene.in.each.cluster(t)
+}
+gene.in.each.cluster_table <- do.call(rbind,t.cell.table)
+gene.in.each.cluster_table
+```
+
+```{r}
+Seurat_markers.cd8 <-FindAllMarkers(data_S_tcell.cd8, test.use = "wilcox",min.pct = 0.25, only.pos = T, logfc.threshold = 0.25)
+
+      markers.DEGs.cd8 = Seurat_markers.cd8   %>%
+                     group_by(cluster) %>%
+                     filter(p_val_adj < 0.05) %>%
+                     group_by(cluster) %>%
+                     arrange(desc(avg_log2FC), .by_group = T)     
+head( markers.DEGs.cd8)
+write.csv(Seurat_markers.cd8, file = "Results/files/PS003-Figur-S4-validation-sadefeldman-cd8.csv")
+saveRDS(Seurat_markers.cd8, file =  "Results/RDS/PS003-Figur-S4-validation-sadefeldman-cd8-marker.Rds")
+```
+
+```{r}
+saveRDS(data_S_tcell.cd8,"./Results/RDS/PS003-Figur-S4-validation-sadefeldman-cd8_tcells_cd8.rds")
+
+```
+
+##Natural break is at 0.3, hence cells expressing PDCD1 and CTLA4 above 0.3 were selected as cp high
+
+```{r}
+gene1 <- "PDCD1"
+gene2 <- "CTLA4"
+
+
+pdcData <- FetchData(data_S_tcell.cd8, vars = gene1)
+head(pdcData)
+
+# Plot histogram for PDCD1
+pdcd1_th2 = ggplot(pdcData, aes(x = log2(1 + log(1 + pdcData[, 1])))) +
+  geom_histogram(binwidth = 0.2, fill = "blue", color = "black") +
+  labs(x = paste("Log2(1+Log(1+x)) of", gene1, "counts"), y = "Frequency") +
+  scale_x_continuous(breaks = c(0,0.1, 0.2,0.3,0.4, 0.5, 1, 1.5)) +
+  theme_classic()
+
+pdcd1_th2 
+ # Filter data where PDCD1 expression is greater than 0.5
+filtered_pdcData <- pdcData[pdcData[, 1] > 0.5, ]
+length(filtered_pdcData)
+
+# Extract expression data for CTLA4
+ctlaData <- FetchData(data_S_tcell.cd8, vars = gene2)
+head(ctlaData)
+# Plot histogram for CTLA4
+ctla4_th = ggplot(ctlaData, aes(x = log2(1 + log(1 + ctlaData[, 1])))) +
+  geom_histogram(binwidth = 0.2, fill = "blue", color = "black") +
+  labs(x = paste("Log2(1+Log(1+x)) of", gene2, "counts"), y = "Frequency") +
+  scale_x_continuous(breaks = c(0,0.1, 0.2,0.3,0.4, 0.5, 1, 1.5)) +
+  theme_classic()
+  
+ctla4_th 
+ # Filter data where CTLA4 expression is greater than 0.5
+filtered_ctlaData <- ctlaData[ctlaData[, 1] > 0.5, ]
+length(filtered_ctlaData)
+```
+
+```{r}
+cphicells <- WhichCells(data_S_tcell.cd8, expression = PDCD1>= 0.3 & CTLA4 >= 0.3)
+length(cphicells)
+
+data_S_tcell.cd8$cp_status <- ifelse(colnames(data_S_tcell.cd8) %in% cphicells, "CPhi", "CPlo")
+
+check_genes_t = data_S_tcell.cd8@meta.data[data_S_tcell.cd8@meta.data$cp_status == "CPhi", ]
+dim(check_genes_t)
+
+info = FetchData(data_S_tcell.cd8,c( "cp_status", "sub_cluster_cd8.3"))
+print(table(info))
+```
+
+
+# Figure S4A
+```{r}
+levels(data_S_tcell.cd8)
+p_cluster.tcell.cd8 <- DimPlot(data_S_tcell.cd8, reduction = "umap", group.by = "sub_cluster_cd8.3", label = TRUE, label.size = 5)
+ #+ theme(legend.position = "none")
+p_cluster.tcell.cd8
+data_S_tcell.cd8 <- RenameIdents(data_S_tcell.cd8,
+                    "0" = "0-Naive and /or TCM-like",
+                    "1" = "1-Terminally exhausted, cytotoxic-like, TRM-like TEX",
+                    "2" = "2-mixed T cells/non-T cells",
+                    "3" = "3-Cycling TEX",
+                    "4" = "4-Effector-like",
+                    "5" = "5-Heat shock")
+
+p_cluster.tcell.cd8 <- DimPlot(data_S_tcell.cd8, reduction = "umap",  label = FALSE, label.size = 5)
+p_cluster.tcell.cd8
+
+```
+
+# Figure S4B
+```{r}
+#UMAP PDCD1 transcript
+FeaturePlot(data_S_tcell.cd8, features = "PDCD1", pt.size = 0.5, label = TRUE) + NoLegend()
+```
+# Figure S4B
+```{r}
+#UMAP CTLA4 transcript
+FeaturePlot(data_S_tcell.cd8, features = "CTLA4", pt.size = 0.5, label = TRUE) + NoLegend()
+```
+# Figure S4C
+```{r}
+#UMAP cp_status
+my_colors_cp_status =c("blue", "gray90")
+cphi.f = DimPlot(data_S_tcell.cd8, reduction = "umap",group.by = "cp_status", label = TRUE, label.size = 5,cols = my_colors_cp_status) + ggtitle("cp_status") + theme_classic()
+print(cphi.f)
+```
+
+# Figure S4D & S4E
+```{r}
+# Loading Gene signature Data and Reading Gene Signatures from an Excel File
+CPhi_bulkRNAseq <- read_excel("Raw_data/TableS4_SupplementGeneSigs.xlsx", n_max = 200)$'CP Hi Signature (source - this paper)'
+
+CPlo_bulkRNAseq <- read_excel("Raw_data/TableS4_SupplementGeneSigs.xlsx", n_max = 200)$'CP Lo Signature (source - this paper)'
+data_S_tcell.cd8 <- AddModuleScore(data_S_tcell.cd8,features = list(CPhi_bulkRNAseq),name="CPhi_bulkRNAseq")
+data_S_tcell.cd8 <- AddModuleScore(data_S_tcell.cd8,features = list(CPlo_bulkRNAseq),name="CPlo_bulkRNAseq")
+
+CPhi_bulkRNAseq_plot200 = FeaturePlot(data_S_tcell.cd8,features = "CPhi_bulkRNAseq1", label = T, repel = TRUE) +
+                             scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdBu")))     
+CPhi_bulkRNAseq_plot200
+
+CPlo_bulkRNAseq_plot200 = FeaturePlot(data_S_tcell.cd8,features = "CPlo_bulkRNAseq1", label = T, repel = TRUE) +
+                             scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdBu")))
+CPlo_bulkRNAseq_plot200
+
+cphi.vol <- VlnPlot(data_S_tcell.cd8, features = c("CPhi_bulkRNAseq1"), pt.size = 0.5, group.by = "cp_status", combine = F)
+cphi.vol
+cplo.vol <- VlnPlot(data_S_tcell.cd8, features = c("CPlo_bulkRNAseq1"), pt.size = 0.5, group.by = "cp_status", combine = F)
+cplo.vol
+```
+
+# Figure S4F
+```{r}
+# Loading Gene signature Data and Reading Gene Signatures from an Excel File
+SadeFeldman_CD8_B <- read_excel("Raw_data/TableS4_SupplementGeneSigs.xlsx")$'Sade Feldman CD8 B (source Sade-Feldman et al. 2018)'
+length(SadeFeldman_CD8_B)
+SadeFeldman_CD8_G <- read_excel("Raw_data/TableS4_SupplementGeneSigs.xlsx", n_max = 34)$'Sade Feldman CD8 G (source Sade-Feldman et al. 2018)'
+length(SadeFeldman_CD8_G)
+Trm_signature<- read_excel("Raw_data/TableS4_SupplementGeneSigs.xlsx", n_max = 143)$'TRM (source Han et al. 2021)'
+cell_cycle_all_strong <- read_excel("Raw_data/TableS4_SupplementGeneSigs.xlsx", n_max = 96)$'Cell Cycle (source Kowalczyk et al. 2015)'
+Glycolytic <- read_excel("Raw_data/TableS4_SupplementGeneSigs.xlsx", n_max = 200)$'Glycolytic (source HALLMARKS database from MSigDB)'
+
+data_S_tcell.cd8 <- AddModuleScore(data_S_tcell.cd8,features = list(SadeFeldman_CD8_B),name="SadeFeldman_CD8_B")
+data_S_tcell.cd8 <- AddModuleScore(data_S_tcell.cd8,features = list(SadeFeldman_CD8_G),name="SadeFeldman_CD8_G")
+data_S_tcell.cd8 <- AddModuleScore(data_S_tcell.cd8,features = list(Trm_signature),name="Trm_signature")
+data_S_tcell.cd8 <- AddModuleScore(data_S_tcell.cd8,features = list(cell_cycle_all_strong),name="cell_cycle_all_strong")
+data_S_tcell.cd8 <- AddModuleScore(data_S_tcell.cd8,features = list(Glycolytic),name="Glycolytic")
+```
+
+# Figure S4F
+```{r}  
+SadeFeldman_CD8_B_plot = FeaturePlot(data_S_tcell.cd8,features = "SadeFeldman_CD8_B1", label = T, repel = TRUE) +
+                             scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdBu")))
+SadeFeldman_CD8_B_plot
+
+SadeFeldman_CD8_G_plot = FeaturePlot(data_S_tcell.cd8,features = "SadeFeldman_CD8_G1", label = T, repel = TRUE) +
+                             scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdBu")))
+SadeFeldman_CD8_G_plot
+
+SadeFeldman_CD8_B.v = VlnPlot_scCustom(data_S_tcell.cd8, features = "SadeFeldman_CD8_B1", group.by = "cp_status",plot_boxplot = TRUE)+labs(y = "Genescore")+
+ggtitle("Sade Feldman CD8 B") +
+theme_classic()+
+theme(legend.position = "bottom", legend.text = element_text(size = 5))
+pval.SadeFeldman_CD8_B.v = wilcox.test(SadeFeldman_CD8_B1 ~ ident,  data = as.data.frame(SadeFeldman_CD8_B.v$data))$p.value
+pval.SadeFeldman_CD8_B.v
+print(SadeFeldman_CD8_B.v + geom_text(aes(x = 1.5, y = 0.5, label = paste("p-value = ", round(pval.SadeFeldman_CD8_B.v, 4))), size = 7))
+
+
+SadeFeldman_CD8_G.v = VlnPlot_scCustom(data_S_tcell.cd8, features = "SadeFeldman_CD8_G1", group.by = "cp_status",plot_boxplot = TRUE)+labs(y = "Genescore")+
+ggtitle("Sade Feldman CD8 G") +
+theme_classic()+
+theme(legend.position = "bottom", legend.text = element_text(size = 5))
+pval.SadeFeldman_CD8_G.v = wilcox.test(SadeFeldman_CD8_G1 ~ ident,  data = as.data.frame(SadeFeldman_CD8_G.v$data))$p.value
+pval.SadeFeldman_CD8_G.v
+print(SadeFeldman_CD8_G.v + geom_text(aes(x = 1.5, y = 0.5, label = paste("p-value = ", pval.SadeFeldman_CD8_G.v, 4)), size = 7))
+```
+
+# Figure S4G
+```{r}
+Trm_signature_plot = FeaturePlot(data_S_tcell.cd8,features = "Trm_signature1", label = T, repel = TRUE) +
+                             scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdBu")))   
+Trm_signature_plot
+
+Trm_signature.v = VlnPlot_scCustom(data_S_tcell.cd8, features = "Trm_signature1", group.by = "cp_status",plot_boxplot = TRUE)+labs(y = "Genescore")+
+ggtitle("TRM Signature") +
+theme_classic()+
+theme(legend.position = "bottom", legend.text = element_text(size = 5))
+pval.Trm_signature.v = wilcox.test(Trm_signature1 ~ ident,  data = as.data.frame(Trm_signature.v$data))$p.value
+pval.Trm_signature.v
+print(Trm_signature.v + geom_text(aes(x = 1.5, y = 0.5, label = paste("p-value = ", pval.Trm_signature.v)), size = 7))
+```
+
+# Figure S4H
+```{r}
+cell_cycle_all_strong_plot = FeaturePlot(data_S_tcell.cd8,features = "cell_cycle_all_strong1", label = T, repel = TRUE) +
+                             scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdBu")))
+cell_cycle_all_strong_plot
+
+cell_cycle_all_strong.v = VlnPlot_scCustom(data_S_tcell.cd8, features = "cell_cycle_all_strong1", group.by = "cp_status",plot_boxplot = TRUE)+labs(y = "Genescore")+
+ggtitle("Cell Cycle All Strong") +
+theme_classic()+
+theme(legend.position = "bottom", legend.text = element_text(size = 5))
+print(cell_cycle_all_strong.v)
+
+pval.cell_cycle_all_strong.v = wilcox.test(cell_cycle_all_strong1 ~ ident,  data = as.data.frame(cell_cycle_all_strong.v$data))$p.value
+pval.cell_cycle_all_strong.v
+print(cell_cycle_all_strong.v + geom_text(aes(x = 1.5, y = 0.5, label = paste("p-value = ", pval.cell_cycle_all_strong.v)), size = 7))
+```
+
+# Figure S4I
+```{r}
+Glycolytic_plot = FeaturePlot(data_S_tcell.cd8,features = "Glycolytic1", label = T, repel = TRUE) +
+                             scale_colour_gradientn(colours = rev(brewer.pal(n = 11, name = "RdBu")))
+Glycolytic_plot
+Glycolytic.v = VlnPlot_scCustom(data_S_tcell.cd8, features = "Glycolytic1", group.by = "cp_status",plot_boxplot = TRUE)+labs(y = "Genescore")+
+ggtitle("Glycolytic") +
+theme_classic()+
+theme(legend.position = "bottom", legend.text = element_text(size = 5))
+print(Glycolytic.v)
+
+pval.Glycolytic.v = wilcox.test(Glycolytic1 ~ ident,  data = as.data.frame(Glycolytic.v$data))$p.value
+pval.Glycolytic.v
+```
+
+# Figure S4J
+```{r}
+gly.vs.seda.B <- FetchData(data_S_tcell.cd8, vars = c("Glycolytic1","SadeFeldman_CD8_B1","sub_cluster_cd8.3") )
+head(gly.vs.seda.B)
+
+# Calculate the median values for each cluster
+values.gly.vs.seda.B<- aggregate(cbind(Glycolytic1, SadeFeldman_CD8_B1) ~ sub_cluster_cd8.3, data = gly.vs.seda.B , FUN = mean )
+head(values.gly.vs.seda.B)
+
+# Scatter plot
+
+fig4_2 = ggplot(values.gly.vs.seda.B, aes(x = Glycolytic1, y = SadeFeldman_CD8_B1)) +
+  geom_point(size = 3, shape = 16) +
+  labs(y = "SadeFeldman_CD8_B Signature Score", x = "Glycolysis (HALLMARKS) Signature Score",
+       title = "Average Signature Scores Per Seurat Cluster") +
+  theme_classic() +
+  geom_text(aes(label = sub_cluster_cd8.3), hjust = 0.5, vjust = -0.5, size = 6)
+fig4_2
+```
+
+# Figure S4K
+```{r}
+# Fetch the data
+gly.vs.trm <- FetchData(data_S_tcell.cd8, vars = c("Glycolytic1","Trm_signature1","sub_cluster_cd8.3") )
+head(gly.vs.trm)
+
+# Calculate the median values for each cluster
+values.gly.trm <- aggregate(cbind(Glycolytic1, Trm_signature1) ~ sub_cluster_cd8.3, data = gly.vs.trm , FUN = mean )
+head(values.gly.trm)
+
+# Scatter plot
+
+fig4_1 = ggplot(values.gly.trm, aes(x = Trm_signature1, y = Glycolytic1)) +
+  geom_point(size = 3, shape = 16) +
+  labs(y = "Glycolysis (HALLMARKS) Signature Score", x = "TRM (Angeles) Signature Score",
+       title = "Average Signature Scores Per Seurat Cluster") +
+  theme_classic() +
+  geom_text(aes(label = sub_cluster_cd8.3), hjust = 0.5, vjust = -0.5, size = 6)
+fig4_1
+```
+
+# Figure S4L
+```{r}
+###gly vs cell cycle
+
+  gly.vs.cc <- FetchData(data_S_tcell.cd8, vars = c("Glycolytic1","cell_cycle_all_strong1","sub_cluster_cd8.3") )
+head(gly.vs.cc)
+
+# Calculate the median values for each cluster
+values.gly.cc <- aggregate(cbind(Glycolytic1, cell_cycle_all_strong1) ~ sub_cluster_cd8.3, data = gly.vs.cc , FUN = mean )
+head(values.gly.cc)
+
+# Scatter plot
+
+fig4_3 = ggplot(values.gly.cc, aes(x = cell_cycle_all_strong1, y = Glycolytic1)) +
+  geom_point(size = 3, shape = 16) +
+  labs(y = "Glycolysis (HALLMARKS) Signature Score", x = "cell cycle Signature Score",
+       title = "Average Signature Scores Per Seurat Cluster") +
+  theme_classic() +
+  geom_text(aes(label = sub_cluster_cd8.3), hjust = 0.5, vjust = -0.5, size = 6)
+fig4_3
+```

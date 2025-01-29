@@ -1,0 +1,202 @@
+---
+title: "PS0011-Remove-TCR genes and Re-Cluster CD8 T cells"
+output: github_document
+Author: "Prachi Sao"
+Date: "2021-06-30"
+organization:"PAUKEN LAB, MD ANDERSON CANCER CENTER"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## GitHub Documents
+
+<!-- This is an R Markdown format used for publishing markdown documents to GitHub. When you click the **Knit** button all R code chunks are run and a markdown file (.md) suitable for publishing to GitHub is generated. -->
+
+## Discription 
+<!-- To analyze CD8+ T cell data, you start by loading the pre-processed data from an RDS file. 
+Using DimPlot, you create a scatter plot of cells based on their principal components to visualize clusters, 
+and VizDimLoadings to understand which genes contribute most to the first two principal components. You then 
+remove T-cell receptor (TCR) genes, which start with “TRA”, “TRB”, “TRD”, or “TRG”. Next, you use VlnPlot to 
+create violin plots that visualize the distribution of RNA features and counts. You filter cells based on the 
+number of detected features and mitochondrial gene percentage to ensure quality.
+split the RNA data by sample for further analysis. The gene expression data is normalized to make it 
+comparable across cells, and genes showing high variability are identified for downstream analysis. 
+The data is scaled to have a mean of 0 and variance of 1, which is necessary for PCA. 
+Principal Component Analysis (PCA) is performed to reduce dimensionality and identify major sources of variation. 
+Data from different samples is integrated using Canonical Correlation Analysis (CCA) to correct for batch effects, 
+and the RNA layers are re-joined after integration.
+basic surat workflow was re-run on the integrated data, and clusters were identified using the FindClusters function.
+The data was visualized using UMAP, and cluster identities were assigned based on the integrated data.
+Differential expression analysis was performed to identify genes that are differentially expressed between clusters.
+The WilcoxAUC function was used to identify genes that are differentially expressed between clusters.
+The results were visualized using a violin plot and a box plot. -->
+
+## call library
+```{r setup, include = FALSE}
+library(knitr)
+library(Seurat, quietly = TRUE) # Single-cell RNA-seq analysis
+library(Azimuth, quietly = TRUE) # Reference-based single-cell RNA-seq analysis
+library(presto, quietly = TRUE) # Fast differential expression analysis
+library(dplyr, quietly = TRUE) # Data manipulation
+library(cowplot, quietly = TRUE) # Plotting
+library(viridis, quietly = TRUE) # Color palettes
+library(gridExtra, quietly = TRUE) # Miscellaneous functions for "grid" graphics
+library(data.table, quietly = TRUE) # Data manipulation
+library(tibble, quietly = TRUE) # Data frames
+library(Matrix, quietly = TRUE) # Sparse and dense matrix classes and methods
+library(ggplot2, quietly = TRUE) # Data visualization
+library(patchwork, quietly = TRUE) # Combine plots
+library(grid, quietly = TRUE) # The Grid Graphics Package
+library(RColorBrewer, quietly = TRUE) # Color palettes
+library(pheatmap, quietly = TRUE) # Pretty heatmaps
+library(purrr, quietly = TRUE) # Functional programming tools
+library(MatrixGenerics, quietly = TRUE) # S4 generic functions for matrix objects
+library(tidyverse, quietly = TRUE) # Data science packages
+library(circlize, quietly = TRUE) # Circular visualization
+library(scCustomize, quietly = TRUE) # Customization for single-cell analysis
+library(qs, quietly = TRUE) # Quick serialization of R objects
+library(dittoSeq, quietly = TRUE) # Visualization of single-cell and bulk RNA-seq data
+library(ggpubr, quietly = TRUE) # 'ggplot2' based publication ready plots
+library(reshape2, quietly = TRUE) # Flexibly reshape data
+require(fgsea, quietly = TRUE) # GSEA analysis
+require(useful, quietly = TRUE) # Corner function to peek at data.frames
+require(readxl, quietly = TRUE) # Reading Excel files
+require(msigdbr, quietly = TRUE) # MSigDB gene sets
+set.seed(1) #set a seed for reproducibility
+```
+
+
+## load colors
+```{r}  
+<!-- # set colors for plots  -->
+my_colors_cluster <- c('red','black','blue','green','orange','yellow','brown','magenta','pink','gray')
+my_colors_sample <- c('purple', 'tan','lightblue','lightgreen','maroon','lightgreen','lightpink','yellow',"orange","lightblue")
+my_colors_cp_status =c("blue", "gray90")
+```
+
+
+
+## Load Data
+```{r setup,echo = TRUE, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+<!-- #Load and visualize CD8 T cells data using DimPlot and VizDimLoadings for dimensional reduction analysis -->
+
+CD8_T_cells_data<- readRDS("Raw_data/HumanTumorIntegrated_filtered.rds")
+CD8_T_cells_data
+DimPlot(CD8_T_cells_data)
+VizDimLoadings(CD8_T_cells_data, dims = 1:2, reduction = "pca")
+```
+
+## Remove TCR
+```{r setup,echo = TRUE, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# remove tcr 
+no_tcr_f <- CD8_T_cells_data[!grepl("^TR[ABDG][VJC]", rownames(CD8_T_cells_data)), ]
+no_tcr_f
+
+VlnPlot(no_tcr_f, features = c("nFeature_RNA", "nCount_RNA"), ncol = 3, pt.size = 0.0001)
+
+no_tcr_final = subset(no_tcr_f , subset = nFeature_RNA > 200 & nFeature_RNA < 5000 & percent.mt < 5 ) # Filter for quality
+no_tcr_final
+```
+
+## Split RNA data by sample
+```{r echo = TRUE}
+<!-- #The code splits the "RNA" data in the no_tcr_final object by the sample attribute and updates the "RNA" entry with the result. -->
+
+no_tcr_final[["RNA"]] <- split(no_tcr_final[["RNA"]], f = no_tcr_final$sample)
+no_tcr_final
+
+# run standard anlaysis workflow
+no_tcr_final <- NormalizeData(no_tcr_final)
+no_tcr_final <- FindVariableFeatures(no_tcr_final)
+no_tcr_final <- ScaleData(no_tcr_final)
+no_tcr_final <- RunPCA(no_tcr_final)
+
+no_tcr_final  <- FindNeighbors(no_tcr_final,  dims = 1:30, reduction = "pca")
+no_tcr_final  <- FindClusters(no_tcr_final , resolution = .4, cluster.name = "unintegrated_clusters")
+
+no_tcr_final<- RunUMAP(no_tcr_final, dims = 1:30, reduction = "pca", reduction.name = "umap.unintegrated")
+```
+
+## Integrate Data
+```{r echo = TRUE}
+no_tcr_final  <- IntegrateLayers(object = no_tcr_final, method = CCAIntegration, orig.reduction = "pca", new.reduction = "integrated.cca", verbose = FALSE)
+
+# re-join layers after integration
+no_tcr_final[["RNA"]] <- JoinLayers(no_tcr_final[["RNA"]])
+
+no_tcr_final <- FindNeighbors(no_tcr_final, reduction = "integrated.cca", dims = 1:30)
+no_tcr_final <- FindClusters(no_tcr_final, resolution = .4, cluster.name = "seurat_cluster.04")
+
+no_tcr_final <- RunUMAP(no_tcr_final, dims = 1:30, reduction = "integrated.cca")
+
+Idents(no_tcr_final)
+Idents(no_tcr_final) = "seurat_cluster.04"
+```
+
+## Differential Expression Analysis
+```{r echo = TRUE}
+# cluster differential expression
+  cat("DE analyses...\n")
+  DE_ranksum <- FindAllMarkers(object = no_tcr_final, verbose = F, test.use = "wilcox",only.pos = FALSE, max.cells.per.ident = 1000) ## downsample to speed up computation
+  head( DE_ranksum)
+  write.csv(DE_ranksum, file = "Results /files/PS0001_deg_ranksum.csv")
+DE_ranksum = read.csv("Results/files/PS0001-deg_ranksum_all.csv")
+
+top.m = Extract_Top_Markers(DE_ranksum, num_genes = 5,rank_by = "avg_log2FC")
+top.m 
+############################## wilcoxauc  ############
+genes <- list() #initialize a list of data.frames of features and auc for each treatment group
+ranks <- list() 
+
+wilcoxauc_score <- wilcoxauc(no_tcr_final, 'seurat_cluster.04')
+dim(wilcoxauc_score)
+length(unique(wilcoxauc_score$feature))
+head(wilcoxauc_score)
+
+dplyr::count(wilcoxauc_score, group)
+for (clusters in unique(wilcoxauc_score$group)) {
+  genes[[clusters]] <-wilcoxauc_score %>%
+  dplyr::filter(group == clusters) %>%
+   arrange(desc(logFC), desc(auc))
+   #write.csv(genes[[clusters]], file = paste0(files, "/PS00001-deg_ranksum.csv"))                  
+                                  }
+         head(genes[[clusters]],50 )
+         
+         
+cluster0.genes<- wilcoxauc_score %>%
+dplyr::filter(group == "0") %>%
+  arrange(desc(auc)) %>% 
+  dplyr::select(feature, auc) 
+head( cluster0.genes)
+ranks<- deframe(cluster0.genes)
+
+head(ranks)
+# Assuming 'your_data' is your data frame with 'cluster' and 'p_value' columns
+ggplot(wilcoxauc_score, aes(x = group, y = pval)) +
+  geom_violin(fill = "skyblue")
+  geom_boxplot(width = 0.1, color = "grey", alpha = 0.2)
+#, color = "gray", alpha = 0.8) +
+  labs(x = "Cluster", y = "Wilcoxon P-Value") +
+  theme_minimal()
+
+wilcoxauc_score.res_nest<- wilcoxauc_score %>%
+  group_by(feature) %>% 
+  tidyr::nest()
+
+wilcoxauc_score.res_nest
+
+wilcoxauc_score.df<- wilcoxauc_score.res_nest$data[[1]] %>% arrange(as.numeric(group))
+wilcoxauc_score.df
+dim(wilcoxauc_score.df)
+write.csv(wilcoxauc_score.df, file = paste0(files,"PS0001-wilcoxauc_score_pvalue_table.csv")) 
+```
+
+##save RDS
+```{r}
+saveRDS(no_tcr_final, "Results/RDS/PS00111-cd8_cca_integrated_res04_final_04_22_2024_final.rds")
+save.image("Results/PS00111-cd8_cca_integrated_res04_final_04_22_2024_final.RData")
+```
