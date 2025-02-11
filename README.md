@@ -51,13 +51,13 @@ Organization: PAUKEN LAB, MD ANDERSON CANCER CENTER"
 
 ### Data
 
-The integrated Seurat object is deposited to GEO " add geo id"
+The integrated Seurat object is deposited to GEO accession number GSE148190
 
 Excel File for gene set enrichment analysis is given as supplementary file S4 "TableS4_SupplementGeneSigs.xlsx"
 
 The published datasets can be found at the following GEO repository:
 
-The bulk RNA seq data used in this study is publicly available on the GEO database (accession number GSE147620). Single cell sequencing and TCR-sequencing data from this paper can be found at accession numbers GSE148190 and GSE159251. The processed data object can be found at GSE148190. The validation dataset was accessed from GEO accession number GSE120575.
+The bulk RNA seq data used in this study is publicly available on the GEO database (accession number GSE147620). Single cell sequencing and TCR-sequencing data from this paper can be found at accession numbers GSE148190 and GSE159251. The validation dataset was accessed from GEO accession number GSE120575.
 
 ### Description
 
