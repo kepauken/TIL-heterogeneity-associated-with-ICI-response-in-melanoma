@@ -10,9 +10,9 @@
 
 Authors: Kelly M. Mahuron 1,2+, Osmaan Shahid 3,4+, Prachi Sao 5,+, Clinton Wu 6,+, Alexandra M. Haugh 7,8, Laura A Huppert 7,8,  Lauren S. Levine 7,8, Margaret M. Lowe 9, Michael Alvarado 1, Markee Micu 7, Katy K. Tsai 7,8, Melissa Chow 8, Meromit Singer 3,10,11,12, Jason M. Schenkel 5,13,14, Arlene H. Sharpe 3,4,10, Michael D. Rosenblum 9*, Kristen E. Pauken 5*, Adil I. Daud 7*
 
- + - co-first authors
+ _+ co-first authors
 
- * - corresponding authors
+ _* corresponding authors
 
 ### Affiliations
 
