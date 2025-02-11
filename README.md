@@ -8,28 +8,28 @@
 
 ### Running Title: TIL heterogeneity associated with ICI response in melanoma
 
-Authors: Kelly M. Mahuron1,2+, Osmaan Shahid3,4+, Prachi Sao5,+, Clinton Wu6,+, Alexandra M. Haugh7,8, Laura A Huppert7,8,  Lauren S. Levine7,8, Margaret M. Lowe9, Michael Alvarado1, Markee Micu7, Katy K. Tsai7,8, Melissa Chow8, Meromit Singer3,10,11,12, Jason M. Schenkel5,13,14, Arlene H. Sharpe3,4,10, Michael D. Rosenblum9,*, Kristen E. Pauken5,*, Adil I. Daud7
+Authors: Kelly M. Mahuron 1,2+, Osmaan Shahid 3,4+, Prachi Sao 5,+, Clinton Wu 6,+, Alexandra M. Haugh 7,8, Laura A Huppert 7,8,  Lauren S. Levine 7,8, Margaret M. Lowe 9, Michael Alvarado 1, Markee Micu 7, Katy K. Tsai 7,8, Melissa Chow 8, Meromit Singer 3,10,11,12, Jason M. Schenkel 5,13,14, Arlene H. Sharpe 3,4,10, Michael D. Rosenblum 9*, Kristen E. Pauken 5*, Adil I. Daud 7*
 
-+ - co-first authors
+ + - co-first authors
 
-* - corresponding authors
+ * - corresponding authors
 
 ### Affiliations
 
-1Department of Surgery, University of California San Francisco, San Francisco, CA, USA
-2Department of Surgery, City of Hope National Medical Center, Duarte, CA, USA
-3Department of Immunology, Blavatnik Institute, Harvard Medical School, Boston, MA, USA
-4Gene Lay Institute of Immunology and Inflammation at Brigham and Women’s Hospital, Massachusetts General Hospital and Harvard Medical School
-5Department of Immunology, The University of Texas MD Anderson Cancer Center, Houston, TX, USA.
-6Department of Medicine, University of Arizona Tucson, Tucson, AZ, USA
-7Department of Medicine, University of California San Francisco, San Francisco, CA, USA
-8Helen Diller Family Comprehensive Cancer Center, University of California San Francisco, San Francisco, CA, USA
-9Department of Dermatology, University of California San Francisco, San Francisco, CA, USA
-10Broad Institute of MIT and Harvard, Cambridge, MA, USA
-11Department of Data Sciences, Dana-Farber Cancer Institute, Boston, MA, USA
-12Present address: Guardant Health, Palo Alto, CA, USA
-13Department of Translational Molecular Pathology, The University of Texas MD Anderson Cancer Center, Houston, TX 77030, USA.
-14Department of Laboratory Medicine, The University of Texas MD Anderson Cancer Center, Houston, TX 77030, USA.
+1 Department of Surgery, University of California San Francisco, San Francisco, CA, USA
+2 Department of Surgery, City of Hope National Medical Center, Duarte, CA, USA
+3 Department of Immunology, Blavatnik Institute, Harvard Medical School, Boston, MA, USA
+4 Gene Lay Institute of Immunology and Inflammation at Brigham and Women’s Hospital, Massachusetts General Hospital and Harvard Medical School
+5 Department of Immunology, The University of Texas MD Anderson Cancer Center, Houston, TX, USA.
+6 Department of Medicine, University of Arizona Tucson, Tucson, AZ, USA
+7 Department of Medicine, University of California San Francisco, San Francisco, CA, USA
+8 Helen Diller Family Comprehensive Cancer Center, University of California San Francisco, San Francisco, CA, USA
+9 Department of Dermatology, University of California San Francisco, San Francisco, CA, USA
+10 Broad Institute of MIT and Harvard, Cambridge, MA, USA
+11 Department of Data Sciences, Dana-Farber Cancer Institute, Boston, MA, USA
+12 Present address: Guardant Health, Palo Alto, CA, USA
+13 Department of Translational Molecular Pathology, The University of Texas MD Anderson Cancer Center, Houston, TX 77030, USA.
+14 Department of Laboratory Medicine, The University of Texas MD Anderson Cancer Center, Houston, TX 77030, USA.
 
 **For Code-Related Queries:**
 Prachi Sao
@@ -57,11 +57,7 @@ Excel File for gene set enrichment analysis is given as supplementary file S4 "T
 
 The published datasets can be found at the following GEO repository:
 
-The bulk RNA-seq data used in this study is publicly available on the GEO database (accession number GSE147620).
-Single-cell sequencing data from patients K383, K409, K411, K468, and K484 have been previously published by our group (54,55) and
-can be found on the GEO database (accession numbers GSE148190 and GSE159251).
-Single-cell sequencing data for patients K374 and K415 will be deposited on the GEO database prior to publication.
-The validation dataset was accessed from GEO accession number GSE120575.
+The bulk RNA seq data used in this study is publicly available on the GEO database (accession number GSE147620). Single cell sequencing and TCR-sequencing data from this paper can be found at accession numbers GSE148190 and GSE159251. The processed data object can be found at GSE148190. The validation dataset was accessed from GEO accession number GSE120575.
 
 ### Description
 
